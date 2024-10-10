@@ -43,6 +43,7 @@ use frame_support::{
 	parameter_types,
 	traits::{ConstBool, ConstU32, ConstU64, ConstU8, FindAuthor, OnFinalize, OnTimestampSet},
 	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, IdentityFee, Weight},
+	PalletId
 };
 use pallet_transaction_payment::{ConstFeeMultiplier, FungibleAdapter};
 use sp_genesis_builder::PresetId;
@@ -60,6 +61,10 @@ pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::Multiplier;
+
+/// Import the template pallet.
+pub use pallet_template;
+pub use pallet_network;
 
 mod precompiles;
 use precompiles::FrontierPrecompiles;
@@ -443,6 +448,40 @@ pub mod pallet_manual_seal {
 
 impl pallet_manual_seal::Config for Runtime {}
 
+/// Configure the pallet-template in pallets/template.
+impl pallet_template::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
+	type Randomness = InsecureRandomnessCollectiveFlip;
+}
+
+impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
+
+parameter_types! {
+	pub const InitialTxRateLimit: u64 = 0;
+	pub const EpochLength: u64 = 10;
+	pub const NetworkPalletId: PalletId = PalletId(*b"/network");
+	pub const SubnetInitializationCost: u128 = 100_000_000_000_000_000_000;
+	pub const MinProposalStake: u128 = 1_000_000_000_000_000_000; // 1 * 1e18
+}
+
+impl pallet_network::Config for Runtime {
+	type WeightInfo = ();
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type EpochLength = EpochLength;
+	type StringLimit = ConstU32<12288>;
+	type InitialTxRateLimit = InitialTxRateLimit;
+// 	type SecsPerBlock = ConstU64<{ MILLISECS_PER_BLOCK as u64 }>; // not in use, remove
+// 	type Year = ConstU64<{ DAYS as u64 }>; // not in use, remove
+// 	type OffchainSignature = Signature;
+// 	type OffchainPublic = AccountPublic;
+	type PalletId = NetworkPalletId;
+	type SubnetInitializationCost = SubnetInitializationCost;
+	type Randomness = InsecureRandomnessCollectiveFlip;
+	type MinProposalStake = MinProposalStake;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[frame_support::runtime]
 mod runtime {
@@ -495,6 +534,15 @@ mod runtime {
 
 	#[runtime::pallet_index(11)]
 	pub type ManualSeal = pallet_manual_seal;
+
+	#[runtime::pallet_index(12)]
+	pub type InsecureRandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip;
+
+	#[runtime::pallet_index(13)]
+	pub type Template = pallet_template;
+
+	#[runtime::pallet_index(14)]
+	pub type Network = pallet_network;
 }
 
 #[derive(Clone)]
@@ -752,6 +800,38 @@ impl_runtime_apis! {
 
 		fn query_length_to_fee(length: u32) -> Balance {
 			TransactionPayment::length_to_fee(length)
+		}
+	}
+
+	impl network_custom_rpc_runtime_api::NetworkRuntimeApi<Block> for Runtime {
+		fn get_subnet_nodes(model_id: u32) -> Vec<u8> {
+			let result = Network::get_subnet_nodes(model_id);
+			result.encode()
+		}
+		fn get_subnet_nodes_included(model_id: u32) -> Vec<u8> {
+			let result = Network::get_subnet_nodes_included(model_id);
+			result.encode()
+		}
+		fn get_subnet_nodes_submittable(model_id: u32) -> Vec<u8> {
+			let result = Network::get_subnet_nodes_submittable(model_id);
+			result.encode()
+		}
+		fn get_subnet_nodes_model_unconfirmed_count(model_id: u32) -> u32 {
+			let result = Network::get_subnet_nodes_model_unconfirmed_count(model_id);
+			result
+			// result.encode()
+		}
+		fn get_consensus_data(model_id: u32, epoch: u32) -> Vec<u8> {
+			let result = Network::get_consensus_data(model_id, epoch);
+			result.encode()
+		}
+		fn get_accountant_data(model_id: u32, id: u32) -> Vec<u8> {
+			let result = Network::get_accountant_data(model_id, id);
+			result.encode()
+		}
+		fn get_minimum_subnet_nodes(subnet_id: u32, memory_mb: u128) -> u32 {
+			let result = Network::get_minimum_subnet_nodes(subnet_id, memory_mb);
+			result
 		}
 	}
 

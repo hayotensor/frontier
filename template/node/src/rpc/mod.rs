@@ -70,6 +70,7 @@ where
 	C::Api: sp_consensus_aura::AuraApi<B, AuraId>,
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<B, AccountId, Nonce>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<B, Balance>,
+	C::Api: network_custom_rpc_runtime_api::NetworkRuntimeApi<B>,
 	C::Api: fp_rpc::ConvertTransactionRuntimeApi<B>,
 	C::Api: fp_rpc::EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
@@ -83,6 +84,7 @@ where
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_manual_seal::rpc::{ManualSeal, ManualSealApiServer};
 	use substrate_frame_rpc_system::{System, SystemApiServer};
+	use network_custom_rpc::{NetworkCustom, NetworkCustomApiServer};
 
 	let mut io = RpcModule::new(());
 	let FullDeps {
@@ -94,7 +96,8 @@ where
 	} = deps;
 
 	io.merge(System::new(client.clone(), pool, deny_unsafe).into_rpc())?;
-	io.merge(TransactionPayment::new(client).into_rpc())?;
+	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
+	io.merge(NetworkCustom::new(client.clone()).into_rpc())?;
 
 	if let Some(command_sink) = command_sink {
 		io.merge(
@@ -103,6 +106,7 @@ where
 			ManualSeal::new(command_sink).into_rpc(),
 		)?;
 	}
+
 
 	// Ethereum compatibility RPCs
 	let io = create_eth::<_, _, _, _, _, _, _, DefaultEthConfig<C, BE>>(
